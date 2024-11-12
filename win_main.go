@@ -191,7 +191,7 @@ func main() {
 
 	for i := 0; i < len(FILES); i += 20 {
 		go func(i int) {
-			for _, file := range FILES[i:min(i, i+20)] {
+			for _, file := range FILES[i:min(len(FILES), i+20)] {
 				encrypt_file(file, aes_gen_password, done)
 			}
 		}(i)
